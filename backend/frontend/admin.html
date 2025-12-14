@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Autowasch</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background: #f8f9fa; padding-top: 50px; }
+    .container { max-width: 900px; }
+    .booking-row { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #ddd; }
+    .status-confirmed { color: green; font-weight: bold; }
+    .status-canceled { color: red; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Admin-Bereich</h2>
+    <div id="loginDiv" class="mb-3">
+      <h5>Login</h5>
+      <form id="loginForm" class="mb-3">
+        <input type="text" id="adminUser" class="form-control mb-2" placeholder="Benutzer" required>
+        <input type="password" id="adminPass" class="form-control mb-2" placeholder="Passwort" required>
+        <button type="submit" class="btn btn-primary w-100">Login</button>
+      </form>
+    </div>
+
+    <div id="adminArea" style="display:none;">
+      <h5>Alle Buchungen</h5>
+      <div id="bookingsList" class="list-group mb-3"></div>
+      <button id="refreshBtn" class="btn btn-secondary mb-3">Aktualisieren</button>
+    </div>
+  </div>
+
+  <script>
+    const loginForm = document.getElementById('loginForm');
+    const adminUserInput = document.getElementById('adminUser');
+    const adminPassInput = document.getElementById('adminPass');
+    const loginDiv = document.getElementById('loginDiv');
+    const adminArea = document.getElementById('adminArea');
+    const bookingsList = document.getElementById('bookingsList');
+    const refreshBtn = document.getElementById('refreshBtn');
+
+    loginForm.addEventListener('submit', async e => {
+      e.preventDefault();
+      const user = adminUserInput.value;
+      const password = adminPassInput.value;
+
+      try {
+        const res = await fetch('/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ user, password })
+        });
+        if (res.ok) {
+          loginDiv.style.display = 'none';
+          adminArea.style.display = 'block';
+          loadBookings();
+        } else {
+          alert('Login fehlgeschlagen');
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    });
+
+    async function loadBookings() {
+      try {
+        const res = await fetch('/api/admin/bookings');
+        const data = await res.json();
+        bookingsList.innerHTML = '';
+        data.forEach(b => {
+          const div = document.createElement('div');
+          div.className = 'booking-row list-group-item';
+          div.innerHTML = `
+            <div>
+              <strong>${b.name}</strong> | ${b.service} | ${new Date(b.start).toLocaleString()} - ${new Date(b.end).toLocaleTimeString()} |
+              <span class="status-${b.status}">${b.status}</span>
+            </div>
+            <div>
+              ${b.status === 'confirmed' ? `<button class="btn btn-sm btn-danger cancelBtn" data-id="${b.id}">Stornieren</button>` : ''}
+            </div>
+          `;
+          bookingsList.appendChild(div);
+        });
+
+        document.querySelectorAll('.cancelBtn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const id = btn.dataset.id;
+            try {
+              const res = await fetch(`/api/admin/cancel/${id}`, { method: 'POST' });
+              if (res.ok) {
+                alert('Buchung storniert und E-Mail gesendet.');
+                loadBookings();
+              } else {
+                alert('Fehler beim Stornieren');
+              }
+            } catch (err) {
+              console.error(err);
+            }
+          });
+        });
+
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    refreshBtn.addEventListener('click', loadBookings);
+  </script>
+</body>
+</html>

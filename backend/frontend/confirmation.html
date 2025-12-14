@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bestätigung</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+<div class="container mt-5">
+  <div class="card p-4 shadow-sm">
+    <h2 class="mb-3">Vielen Dank für Ihre Buchung!</h2>
+    <div id="confirmationDetails"></div>
+    <a href="index.html" class="btn btn-primary mt-3">Neue Buchung</a>
+  </div>
+</div>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const name = params.get('name');
+const service = params.get('service');
+const start_time = new Date(params.get('start_time'));
+const end_time = new Date(params.get('end_time'));
+
+document.getElementById('confirmationDetails').innerHTML = `
+  <p><strong>Name:</strong> ${name}</p>
+  <p><strong>Service:</strong> ${service}</p>
+  <p><strong>Datum & Zeit:</strong> ${start_time.toLocaleDateString()} ${start_time.toLocaleTimeString()} – ${end_time.toLocaleTimeString()}</p>
+`;
+</script>
+</body>
+</html>
