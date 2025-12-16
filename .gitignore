@@ -12,3 +12,5 @@ node_modules/
 # VS Code
 .vscode/
 .DS_Store
+
+dbbookings.db
