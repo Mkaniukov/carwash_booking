@@ -1,171 +1,192 @@
-const durations = { 'reinigung1': 60, 'reinigung2': 90, 'reinigung3': 120 };
-const workStart = 7.5 * 60; // 7:30
-const workEnd = 18 * 60;    // 18:00
+// ================= CONFIG =================
+const WORK_START = 7.5 * 60; // 07:30
+const WORK_END = 18 * 60;   // 18:00
+const SLOT_STEP = 30;       // minutes
 
+// ================= DOM =================
 const serviceSelect = document.getElementById('service');
 const dateInput = document.getElementById('date');
 const timeSlotsDiv = document.getElementById('timeSlots');
 const form = document.getElementById('bookingForm');
 const messageDiv = document.getElementById('message');
 
+// ================= STATE =================
+let services = {};
 let busySlots = [];
-let selectedSlot = null;
+let selectedStartMinutes = null;
 
-// ==================== HELPERS ====================
-async function fetchBusySlots() {
-  try {
-    const res = await fetch('/api/slots');
-    const data = await res.json();
-    busySlots = data.map(b => ({
-      start_time: new Date(b.start_time),
-      end_time: new Date(b.end_time)
-    }));
-  } catch (err) {
-    console.error('Fehler beim Laden der Slots:', err);
-  }
+// ================= HELPERS =================
+function pad(n) {
+  return n.toString().padStart(2, '0');
 }
 
-function parseDateInput(value) {
+function parseDate(value) {
   if (!value) return null;
-  const [year, month, day] = value.split('-').map(Number);
-  return new Date(year, month - 1, day);
-}
-
-function getAllSlots() {
-  const slots = [];
-  for (let t = Math.floor(workStart); t < workEnd; t += 30) slots.push(t);
-  return slots;
+  const [y, m, d] = value.split('-').map(Number);
+  return new Date(y, m - 1, d);
 }
 
 function toLocalISOString(d) {
-  const pad = n => n.toString().padStart(2,'0');
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-// ==================== MAIN ====================
-async function populateSlots() {
-  await fetchBusySlots();
-  const service = serviceSelect.value;
-  const serviceDuration = durations[service];
+function getAllSlotMinutes() {
+  const slots = [];
+  for (let m = Math.floor(WORK_START); m < WORK_END; m += SLOT_STEP) {
+    slots.push(m);
+  }
+  return slots;
+}
 
-  const date = parseDateInput(dateInput.value);
-  if (!date || isNaN(date.getTime())) {
+// ================= API =================
+async function loadServices() {
+  const res = await fetch('/api/services');
+  services = await res.json();
+
+  serviceSelect.innerHTML = '';
+  for (const key in services) {
+    const s = services[key];
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = `${s.name} – ${s.duration} Min – €${s.price}`;
+    opt.title = s.description;
+    serviceSelect.appendChild(opt);
+  }
+}
+
+async function loadBusySlots() {
+  const res = await fetch('/api/slots');
+  const data = await res.json();
+  busySlots = data.map(b => ({
+    start: new Date(b.start_time),
+    end: new Date(b.end_time)
+  }));
+}
+
+// ================= LOGIC =================
+function isRangeFree(start, end) {
+  for (const b of busySlots) {
+    if (start < b.end && end > b.start) return false;
+  }
+  return true;
+}
+
+function clearSelection() {
+  selectedStartMinutes = null;
+  document.querySelectorAll('.slot').forEach(s => s.classList.remove('selected'));
+}
+
+async function renderSlots() {
+  await loadBusySlots();
+  clearSelection();
+
+  const date = parseDate(dateInput.value);
+  if (!date) {
     timeSlotsDiv.innerHTML = '';
     return;
   }
 
-  const allSlots = getAllSlots();
+  const serviceKey = serviceSelect.value;
+  const service = services[serviceKey];
+  const duration = service.duration;
+
   timeSlotsDiv.innerHTML = '';
 
-  allSlots.forEach(minutes => {
-    const slotStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  for (const minutes of getAllSlotMinutes()) {
+    const slotStart = new Date(date);
     slotStart.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
-    const slotEnd = new Date(slotStart.getTime() + 30*60000); // каждый слот = 30 мин
 
-    const slotDiv = document.createElement('div');
-    slotDiv.textContent = `${slotStart.getHours().toString().padStart(2,'0')}:${slotStart.getMinutes().toString().padStart(2,'0')}`;
-    slotDiv.dataset.minutes = minutes;
+    const slotEnd = new Date(slotStart.getTime() + duration * 60000);
 
-    // ================= проверка занятости =================
+    const div = document.createElement('div');
+    div.classList.add('slot');
+    div.dataset.minutes = minutes;
+    div.textContent = `${pad(slotStart.getHours())}:${pad(slotStart.getMinutes())}`;
+
     let busy = false;
-    const now = new Date();
-    if (slotEnd <= now || minutes < workStart || minutes >= workEnd) busy = true;
-    for (const b of busySlots) {
-      if (slotStart < b.end_time && slotEnd > b.start_time) {
-        busy = true;
-        break;
-      }
-    }
+
+    if (slotEnd.getTime() > new Date(date).setHours(18, 0, 0, 0)) busy = true;
+    if (slotEnd <= new Date()) busy = true;
+    if (!isRangeFree(slotStart, slotEnd)) busy = true;
 
     if (busy) {
-      slotDiv.className = 'slot busy';
+      div.classList.add('busy');
     } else {
-      slotDiv.className = 'slot free';
-      slotDiv.addEventListener('click', () => {
-        document.querySelectorAll('.slot').forEach(s => s.classList.remove('selected'));
+      div.classList.add('free');
+      div.addEventListener('click', () => {
+        clearSelection();
+        selectedStartMinutes = minutes;
 
-        const clickedMinutes = parseInt(slotDiv.dataset.minutes);
-        const slotsToHighlight = Math.ceil(serviceDuration / 30);
-
-        for (let i = 0; i < slotsToHighlight; i++) {
-          const m = clickedMinutes + i*30;
-          const s = document.querySelector(`.slot[data-minutes='${m}']`);
-          if (s && s.classList.contains('free')) s.classList.add('selected');
+        const blocks = Math.ceil(duration / SLOT_STEP);
+        for (let i = 0; i < blocks; i++) {
+          const m = minutes + i * SLOT_STEP;
+          const el = document.querySelector(`.slot[data-minutes='${m}']`);
+          if (el) el.classList.add('selected');
         }
-
-        selectedSlot = clickedMinutes;
       });
     }
 
-    // подсветка выбранного слота после перерисовки
-    if (selectedSlot !== null) {
-      const slotsToHighlight = Math.ceil(serviceDuration / 30);
-      if (minutes >= selectedSlot && minutes < selectedSlot + slotsToHighlight*30) {
-        slotDiv.classList.add('selected');
-      }
-    }
-
-    timeSlotsDiv.appendChild(slotDiv);
-  });
+    timeSlotsDiv.appendChild(div);
+  }
 }
 
-// ==================== EVENT LISTENERS ====================
+// ================= EVENTS =================
 dateInput.addEventListener('change', () => {
-  const date = parseDateInput(dateInput.value);
-  if (!date) return;
-  if (date.getDay() === 0 || date.getDay() === 6) {
-    alert('Nur Werktage (Montag-Freitag) sind erlaubt.');
+  const d = parseDate(dateInput.value);
+  if (!d) return;
+  if (d.getDay() === 0 || d.getDay() === 6) {
+    alert('Nur Werktage (Mo–Fr) erlaubt');
     dateInput.value = '';
     timeSlotsDiv.innerHTML = '';
-  } else {
-    populateSlots();
+    return;
   }
+  renderSlots();
 });
 
-serviceSelect.addEventListener('change', populateSlots);
-window.addEventListener('load', populateSlots);
+serviceSelect.addEventListener('change', renderSlots);
 
-// ==================== FORM SUBMIT ====================
+window.addEventListener('load', async () => {
+  await loadServices();
+  renderSlots();
+});
+
+// ================= SUBMIT =================
 form.addEventListener('submit', async e => {
   e.preventDefault();
-  if (selectedSlot === null) {
-    alert('Bitte wählen Sie eine Uhrzeit.');
+
+  if (selectedStartMinutes === null) {
+    alert('Bitte Uhrzeit wählen');
     return;
   }
 
-  const date = parseDateInput(dateInput.value);
-  const service = serviceSelect.value;
-  const serviceDuration = durations[service];
-  date.setHours(Math.floor(selectedSlot / 60), selectedSlot % 60, 0, 0);
+  const date = parseDate(dateInput.value);
+  date.setHours(Math.floor(selectedStartMinutes / 60), selectedStartMinutes % 60, 0, 0);
 
-  const data = {
+  const payload = {
     name: document.getElementById('name').value,
     phone: document.getElementById('phone').value,
     email: document.getElementById('email').value,
-    service: service,
+    service: serviceSelect.value,
     start_time: toLocalISOString(date)
   };
 
-  try {
-    const res = await fetch('/api/book', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
+  const res = await fetch('/api/book', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
 
-    const result = await res.json();
+  if (res.ok) {
+      const serviceKey = serviceSelect.value;
+      const serviceName = services[serviceKey].name; // получаем читаемое название
 
-    if (res.ok) {
-      busySlots.push({ start_time: date, end_time: new Date(date.getTime() + serviceDuration*60000) });
-      messageDiv.innerHTML = `<div class="alert alert-success">
-        Vielen Dank! Ihre Buchung für ${date.toLocaleDateString()} um ${date.getHours().toString().padStart(2,'0')}:${date.getMinutes().toString().padStart(2,'0')} wurde erfolgreich erstellt.
-      </div>`;
-      selectedSlot = null;
-      populateSlots();
-    } else {
-      messageDiv.innerHTML = `<div class="alert alert-danger">${result.detail}</div>`;
-    }
-  } catch (err) {
-    messageDiv.innerHTML = `<div class="alert alert-danger">Fehler: ${err}</div>`;
+      const params = new URLSearchParams({
+          date: dateInput.value,
+          time: `${pad(date.getHours())}:${pad(date.getMinutes())}`,
+          service: serviceName
+      });
+
+      window.location.href = '/success?' + params.toString();
   }
+
 });

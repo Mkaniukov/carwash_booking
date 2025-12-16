@@ -5,108 +5,164 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin Autowasch</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
   <style>
-    body { background: #f8f9fa; padding-top: 50px; }
-    .container { max-width: 900px; }
-    .booking-row { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #ddd; }
-    .status-confirmed { color: green; font-weight: bold; }
-    .status-canceled { color: red; font-weight: bold; }
+    body {
+      background: #f2f2f7;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      padding: 20px;
+      color: #1c1c1e;
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    #loginForm {
+      max-width: 400px;
+      margin: 0 auto 20px auto;
+    }
+
+    input {
+      border-radius: 12px;
+      border: 1px solid #ccc;
+      padding: 10px;
+      width: 100%;
+      margin-bottom: 12px;
+      font-size: 16px;
+    }
+
+    button {
+      border-radius: 12px;
+      border: none;
+      padding: 10px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    #list {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      min-width: 900px; /* таблица не сжимается */
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 12px;
+      text-align: center;
+      font-size: 14px;
+      border-bottom: 1px solid #ddd;
+    }
+
+    th {
+      background: #f0f0f5;
+      font-weight: 600;
+    }
+
+    tr:hover {
+      background: #f9f9f9;
+    }
+
+    button.cancel-btn {
+      background: #ff3b30;
+      color: white;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 14px;
+    }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h2>Admin-Bereich</h2>
-    <div id="loginDiv" class="mb-3">
-      <h5>Login</h5>
-      <form id="loginForm" class="mb-3">
-        <input type="text" id="adminUser" class="form-control mb-2" placeholder="Benutzer" required>
-        <input type="password" id="adminPass" class="form-control mb-2" placeholder="Passwort" required>
-        <button type="submit" class="btn btn-primary w-100">Login</button>
-      </form>
-    </div>
 
-    <div id="adminArea" style="display:none;">
-      <h5>Alle Buchungen</h5>
-      <div id="bookingsList" class="list-group mb-3"></div>
-      <button id="refreshBtn" class="btn btn-secondary mb-3">Aktualisieren</button>
+  <!-- LOGIN -->
+  <div id="loginForm">
+    <h2>Admin Login</h2>
+    <input type="text" id="user" placeholder="Benutzername">
+    <input type="password" id="pass" placeholder="Passwort">
+    <button onclick="login()" class="btn btn-primary w-100">Login</button>
+  </div>
+
+  <!-- BOOKINGS TABLE -->
+  <div id="bookingsCard" style="display:none;">
+    <h2>Buchungen</h2>
+    <div id="list">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Telefon</th>
+            <th>Service</th>
+            <th>Datum</th>
+            <th>Zeit</th>
+            <th>Status</th>
+            <th>Aktion</th>
+          </tr>
+        </thead>
+        <tbody id="bookingRows">
+          <!-- строки бронирований подгружаются JS -->
+        </tbody>
+      </table>
     </div>
+    <button onclick="logout()" class="btn btn-secondary w-100 mt-3">Logout</button>
   </div>
 
   <script>
-    const loginForm = document.getElementById('loginForm');
-    const adminUserInput = document.getElementById('adminUser');
-    const adminPassInput = document.getElementById('adminPass');
-    const loginDiv = document.getElementById('loginDiv');
-    const adminArea = document.getElementById('adminArea');
-    const bookingsList = document.getElementById('bookingsList');
-    const refreshBtn = document.getElementById('refreshBtn');
+    async function login() {
+      const res = await fetch('/admin/login', {
+        method: 'POST',
+        body: new URLSearchParams({
+          user: document.getElementById('user').value,
+          password: document.getElementById('pass').value
+        })
+      });
 
-    loginForm.addEventListener('submit', async e => {
-      e.preventDefault();
-      const user = adminUserInput.value;
-      const password = adminPassInput.value;
-
-      try {
-        const res = await fetch('/admin/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({ user, password })
-        });
-        if (res.ok) {
-          loginDiv.style.display = 'none';
-          adminArea.style.display = 'block';
-          loadBookings();
-        } else {
-          alert('Login fehlgeschlagen');
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    });
-
-    async function loadBookings() {
-      try {
-        const res = await fetch('/api/admin/bookings');
-        const data = await res.json();
-        bookingsList.innerHTML = '';
-        data.forEach(b => {
-          const div = document.createElement('div');
-          div.className = 'booking-row list-group-item';
-          div.innerHTML = `
-            <div>
-              <strong>${b.name}</strong> | ${b.service} | ${new Date(b.start).toLocaleString()} - ${new Date(b.end).toLocaleTimeString()} |
-              <span class="status-${b.status}">${b.status}</span>
-            </div>
-            <div>
-              ${b.status === 'confirmed' ? `<button class="btn btn-sm btn-danger cancelBtn" data-id="${b.id}">Stornieren</button>` : ''}
-            </div>
-          `;
-          bookingsList.appendChild(div);
-        });
-
-        document.querySelectorAll('.cancelBtn').forEach(btn => {
-          btn.addEventListener('click', async () => {
-            const id = btn.dataset.id;
-            try {
-              const res = await fetch(`/api/admin/cancel/${id}`, { method: 'POST' });
-              if (res.ok) {
-                alert('Buchung storniert und E-Mail gesendet.');
-                loadBookings();
-              } else {
-                alert('Fehler beim Stornieren');
-              }
-            } catch (err) {
-              console.error(err);
-            }
-          });
-        });
-
-      } catch (err) {
-        console.error(err);
-      }
+      if (res.ok) {
+        document.getElementById('loginForm').style.display = 'none';
+        document.getElementById('bookingsCard').style.display = 'block';
+        load();
+      } else alert("Login falsch");
     }
 
-    refreshBtn.addEventListener('click', loadBookings);
+    async function load() {
+      const res = await fetch('/api/admin/bookings');
+      const data = await res.json();
+
+      const tbody = document.getElementById('bookingRows');
+      tbody.innerHTML = '';
+
+      data.forEach(b => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${b.name}</td>
+          <td>${b.phone}</td>
+          <td>${b.service}</td>
+          <td>${b.date}</td>
+          <td>${b.time}</td>
+          <td>${b.status}</td>
+          <td>${b.status === 'confirmed' ? `<button class="cancel-btn" onclick="cancel(${b.id})">X</button>` : ''}</td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    async function cancel(id) {
+      await fetch('/api/admin/cancel/' + id, { method: 'POST' });
+      load();
+    }
+
+    function logout() {
+      document.getElementById('loginForm').style.display = 'block';
+      document.getElementById('bookingsCard').style.display = 'none';
+    }
   </script>
 </body>
 </html>

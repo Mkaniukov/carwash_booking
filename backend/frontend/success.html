@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Buchung bestätigt</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="booking-info">
+      <h2>✅ Buchung bestätigt</h2>
+
+      <div class="info-row"><b>Datum:</b> <span id="date"></span></div>
+      <div class="info-row"><b>Uhrzeit:</b> <span id="time"></span></div>
+      <div class="info-row"><b>Service:</b> <span id="service"></span></div>
+
+      <div id="suvWarning" class="alert alert-warning" style="display:none;">
+        ⚠️ SUV & GROSSRAUM-FAHRZEUG: Für große Fahrzeuge wird ein Zuschlag auf die Programme 3 bis 5 von <b>€24</b> berechnet.
+      </div>
+
+      <a href="/" class="btn btn-primary mt-3">Neue Buchung</a>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const p = new URLSearchParams(window.location.search);
+      const serviceName = p.get('service') || '';
+
+      document.getElementById('date').textContent = p.get('date') || '';
+      document.getElementById('time').textContent = p.get('time') || '';
+      document.getElementById('service').textContent = serviceName;
+
+      const suvServices = ["CAR EASY", "CAR WELLNESS", "CAR INTENSE (Innen)"];
+      if (suvServices.includes(serviceName)) {
+        document.getElementById('suvWarning').style.display = 'block';
+      }
+    });
+  </script>
+</body>
+</html>
