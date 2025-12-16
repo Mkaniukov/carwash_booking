@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from fastapi_mail import ConnectionConfig
+from fastapi import BackgroundTasks
 import os
 
 # ================== SETTINGS ==================
@@ -159,8 +160,9 @@ def slots():
     db.close()
     return [{"start_time": b.start_time.isoformat(), "end_time": b.end_time.isoformat()} for b in data]
 
+
 @app.post("/api/book")
-async def book(data: dict):
+async def book(data: dict, background_tasks: BackgroundTasks):
     service = SERVICES[data["service"]]
     start = datetime.fromisoformat(data["start_time"])
     end = start + timedelta(minutes=service["duration"])
@@ -194,29 +196,22 @@ async def book(data: dict):
     db.refresh(booking)
     db.close()
 
-    # Отправка email
+    # Подготовка email клиенту
     html_body = render_booking_email(
         name=data["name"],
         service_name=service["name"],
         start=start,
         cancel_token=booking.cancel_token
     )
-    message = MessageSchema(
+    message_client = MessageSchema(
         subject="Bestätigung Ihrer Buchung",
         recipients=[data["email"]],
         body=html_body,
         subtype="html"
     )
-    fm = FastMail(conf)
 
-    try:
-        await fm.send_message(message)
-    except Exception as e:
-        # Логируем ошибку, но не ломаем сервер
-        print(f"Ошибка при отправке email: {e}")
-
-    # Отправка email администратору
-    admin_email = settings.MAIL_USERNAME  # или любой другой, если админ отдельный
+    # Подготовка email администратору
+    admin_email = settings.MAIL_USERNAME
     html_body_admin = f"""
     <html>
     <body>
@@ -236,10 +231,22 @@ async def book(data: dict):
         subtype="html"
     )
 
+    fm = FastMail(conf)
+
+    # Отправка email в фоне
+    background_tasks.add_task(send_email, fm, message_client)
+    background_tasks.add_task(send_email, fm, message_admin)
+
+    # Возвращаем ответ сразу, не дожидаясь отправки писем
+    return {"ok": True, "cancel_token": booking.cancel_token}
+
+
+async def send_email(fm: FastMail, message: MessageSchema):
     try:
-        await fm.send_message(message_admin)
+        await fm.send_message(message)
     except Exception as e:
-        print(f"Ошибка при отправке email администратору: {e}")
+        print(f"Ошибка при отправке email: {e}")
+
 
 # ================== CANCEL ==================
 @app.get("/cancel/{token}", response_class=HTMLResponse)
