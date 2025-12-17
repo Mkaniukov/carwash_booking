@@ -1,5 +1,6 @@
-from fastapi import FastAPI, HTTPException, Form
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, HTTPException, Request, Form
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import create_engine, Column, Integer, String, DateTime
 from sqlalchemy.orm import sessionmaker, declarative_base
@@ -253,18 +254,28 @@ async def send_email(fm: FastMail, message: MessageSchema):
 def cancel_booking(token: str):
     db = SessionLocal()
     booking = db.query(Booking).filter(Booking.cancel_token == token).first()
+
     if not booking:
         db.close()
-        return "<h3>Buchung nicht gefunden oder bereits storniert.</h3>"
+        return RedirectResponse(url="/cancel?status=not_found")
+
+    if booking.status == "canceled":
+        db.close()
+        return RedirectResponse(
+            url=f"/cancel?status=already_canceled&service={SERVICES.get(booking.service, {'name': booking.service})['name']}&date={booking.start_time.strftime('%d.%m.%Y')}&time={booking.start_time.strftime('%H:%M')}"
+        )
 
     booking.status = "canceled"
+    service_name = SERVICES.get(booking.service, {"name": booking.service})["name"]
+    date = booking.start_time.strftime("%d.%m.%Y")
+    time_ = booking.start_time.strftime("%H:%M")
     db.commit()
     db.close()
 
-    return f"""
-    <h3>Ihre Buchung für {SERVICES.get(booking.service, {'name': booking.service})['name']} 
-    am {booking.start_time.strftime('%d.%m.%Y um %H:%M')} wurde erfolgreich storniert.</h3>
-    """
+    return RedirectResponse(
+        url=f"/cancel?status=canceled&service={service_name}&date={date}&time={time_}"
+    )
+
 
 # ================== PAGES ==================
 @app.get("/", response_class=HTMLResponse)
@@ -314,3 +325,49 @@ def admin_cancel(id: int):
     db.commit()
     db.close()
     return {"ok": True}
+
+
+
+@app.get("/cancel", response_class=HTMLResponse)
+def cancel():
+    return open(os.path.join(BASE_DIR, "frontend", "cancel.html"), encoding="utf-8").read()
+
+templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "..", "frontend"))
+
+
+@app.get("/cancel/{token}", response_class=HTMLResponse)
+def cancel_booking(token: str, request: Request):
+    db = SessionLocal()
+    booking = db.query(Booking).filter(Booking.cancel_token == token).first()
+
+    if not booking:
+        db.close()
+        return templates.TemplateResponse(
+            "cancel.html",
+            {"request": request, "status": "not_found", "service": "–", "date": "–", "time": "–", "title": "Buchung nicht gefunden"}
+        )
+
+    if booking.status == "canceled":
+        service_name = SERVICES.get(booking.service, {"name": booking.service})["name"]
+        start = booking.start_time
+        db.close()
+        return templates.TemplateResponse(
+            "cancel.html",
+            {"request": request, "status": "already_canceled", "service": service_name,
+             "date": start.strftime("%d.%m.%Y"), "time": start.strftime("%H:%M"),
+             "title": "Bereits storniert"}
+        )
+
+    # если не отменено — отменяем
+    booking.status = "canceled"
+    service_name = SERVICES.get(booking.service, {"name": booking.service})["name"]
+    start = booking.start_time
+    db.commit()
+    db.close()
+
+    return templates.TemplateResponse(
+        "cancel.html",
+        {"request": request, "status": "canceled", "service": service_name,
+         "date": start.strftime("%d.%m.%Y"), "time": start.strftime("%H:%M"),
+         "title": "Buchung storniert"}
+    )
