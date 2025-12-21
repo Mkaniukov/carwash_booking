@@ -1,9 +1,10 @@
 /* ==================== Общие ==================== */
 body {
-    background: #f2f2f7; /* мягкий серый фон, как в iOS */
+    background: #f2f2f7;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     padding-top: 40px;
     color: #1c1c1e;
+    margin: 0;
 }
 
 /* Контейнер */
@@ -42,24 +43,24 @@ body {
     font-weight: 500;
     user-select: none;
     transition: all 0.2s ease-in-out;
-    background: #e5e5ea; /* серый по умолчанию */
+    background: #e5e5ea;
     color: #1c1c1e;
 }
 
 .slot.free {
-    background-color: #34c759; /* мягкий зеленый */
-    color: white;
+    background-color: #34c759;
+    color: #fff;
 }
 
 .slot.busy {
-    background-color: #ff3b30; /* мягкий красный */
-    color: white;
+    background-color: #ff3b30;
+    color: #fff;
     cursor: not-allowed;
     opacity: 0.7;
 }
 
 .slot.selected {
-    background-color: #ffcc00; /* желтый как выделение */
+    background-color: #ffcc00;
     color: #1c1c1e;
     font-weight: 600;
     transform: scale(1.05);
@@ -90,7 +91,7 @@ button[type="submit"] {
     border-radius: 14px;
     border: none;
     background: linear-gradient(90deg, #0a84ff, #5ac8fa);
-    color: white;
+    color: #fff;
     font-weight: 600;
     font-size: 16px;
     transition: all 0.2s ease-in-out;
@@ -142,4 +143,66 @@ button[type="submit"]:hover {
 #suvWarning {
     font-size: 0.95rem;
     margin-top: 18px;
+}
+
+/* ==================== Сервисные карточки ==================== */
+#services {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+}
+
+.service-card {
+    border: 1px solid #dee2e6;
+    border-radius: 12px;
+    padding: 12px 14px;
+    cursor: pointer;
+    background: #fff;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+    transition: all 0.2s ease-in-out;
+    display: flex;
+    flex-direction: column;
+}
+
+.service-card:hover {
+    border-color: #0d6efd;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+.service-card.selected {
+    border-color: #0d6efd;
+    background-color: #e7f1ff;
+    box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+}
+
+.service-title {
+    font-weight: 600;
+    font-size: 16px;
+    margin-bottom: 4px;
+    color: #1c1c1e;
+}
+
+.service-meta {
+    font-size: 13px;
+    color: #555;
+    margin-bottom: 6px;
+}
+
+/* Описание с обрезкой на 3 строки */
+.service-card p.description {
+    font-size: 12px;
+    color: #666;
+    margin: 0;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1; /* показываем 3 строки */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: all 0.3s;
+}
+
+/* Раскрытие полного текста */
+.service-card p.description.expanded {
+    -webkit-line-clamp: unset;
+    display: block;
 }

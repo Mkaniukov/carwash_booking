@@ -4,7 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Autowasch-Buchung</title>
+
+  <!-- Content Security Policy -->
+  <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self';
+      style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;
+      font-src 'self' https://cdn.jsdelivr.net;
+      img-src 'self' data:;
+  ">
+
+  <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
   <link rel="stylesheet" href="/static/style.css">
   <style>
     body { background: #f8f9fa; padding-top: 50px; }
@@ -26,37 +38,41 @@
     <div id="message"></div>
 
     <form id="bookingForm" class="bg-white p-4 rounded shadow-sm">
+      <!-- Name -->
       <div class="mb-3">
         <label for="name" class="form-label">Name</label>
-        <input type="text" class="form-control" id="name" required>
+        <input type="text" id="name" name="name" class="form-control" autocomplete="name" required>
+        <div class="invalid-feedback" id="nameError"></div>
       </div>
 
+      <!-- Telefon -->
       <div class="mb-3">
         <label for="phone" class="form-label">Telefon</label>
-        <input type="text" class="form-control" id="phone" required>
+        <input type="tel" id="phone" name="phone" class="form-control" autocomplete="tel" required>
+        <div class="invalid-feedback" id="phoneError"></div>
       </div>
 
+      <!-- E-Mail -->
       <div class="mb-3">
         <label for="email" class="form-label">E-Mail</label>
-        <input type="email" class="form-control" id="email" required>
+        <input type="email" id="email" name="email" class="form-control" autocomplete="email" required>
+        <div class="invalid-feedback" id="emailError"></div>
       </div>
 
+      <!-- Service -->
       <div class="mb-3">
-        <label for="service" class="form-label">Service</label>
-        <select class="form-select" id="service">
-          <option value="car_spa">CAR SPA® (30 Min – €24)</option>
-          <option value="car_soft">CAR SOFT (30 Min – €36)</option>
-          <option value="car_easy">CAR EASY (90 Min – €74)</option>
-          <option value="car_wellness">CAR WELLNESS (120 Min – €86)</option>
-          <option value="car_intense">CAR INTENSE (Innen, 90 Min – €68)</option>
-        </select>
+        <label class="form-label">Service</label>
+        <div id="services" class="row g-3"></div>
+        <input type="hidden" id="service" name="service" required>
       </div>
 
+      <!-- Datum -->
       <div class="mb-3">
         <label for="date" class="form-label">Datum</label>
-        <input type="date" class="form-control" id="date" required>
+        <input type="date" id="date" name="date" class="form-control" autocomplete="bday" required>
       </div>
 
+      <!-- Verfügbare Zeiten -->
       <div class="mb-3">
         <label class="form-label">Verfügbare Zeiten</label>
         <div id="timeSlots"></div>
@@ -66,6 +82,6 @@
     </form>
   </div>
 
-  <script src="/static/booking.js"></script>
+  <script src="/static/booking.js" defer></script>
 </body>
 </html>
