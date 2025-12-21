@@ -11,7 +11,7 @@ from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from fastapi_mail import ConnectionConfig
 from fastapi import BackgroundTasks
-from services import SERVICES
+from .services import SERVICES
 import os
 
 # ================== SETTINGS ==================
