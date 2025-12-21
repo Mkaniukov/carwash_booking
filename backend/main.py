@@ -11,6 +11,7 @@ from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from fastapi_mail import ConnectionConfig
 from fastapi import BackgroundTasks
+from services import SERVICES
 import os
 
 # ================== SETTINGS ==================
@@ -36,59 +37,6 @@ WORK_END = time(18, 0)
 
 DATABASE_URL = "sqlite:///./bookings.db"
 
-# ================== SERVICES ==================
-SERVICES = {
-    "car_spa": {
-        "name": "CAR SPA®",
-        "price": 24,
-        "duration": 30,
-        "description": "Schnelle, günstige und schonende textile Außenwäsche. "
-                       "Manuelle Vorreinigung – Aktivschaum – Shampoowäsche – "
-                       "Radwäsche – maschinelles Trocknen."
-    },
-    "car_soft": {
-        "name": "CAR SOFT",
-        "price": 36,
-        "duration": 30,
-        "description": "Intensive, schonende textile Außenwäsche mit Felgenreinigung extra. "
-                       "Manuelle Vorreinigung – händische Felgenreinigung – Aktivschaum – "
-                       "Shampoowäsche – Radwäsche – maschinelle Trocknung & zusätzliche "
-                       "manuelle Nachtrocknung."
-    },
-    "car_easy": {
-        "name": "CAR EASY",
-        "price": 74,
-        "duration": 90,
-        "description": "Einfache Außen- und Innenreinigung (ohne Kofferraum oder Ladefläche). "
-                       "Manuelle Vorreinigung – händische Felgenreinigung – Aktivschaum – "
-                       "Shampoowäsche – Radwäsche – maschinelle Trocknung & zusätzliche "
-                       "manuelle Nachtrocknung – Reinigung von Fußmatten, Innenflächen "
-                       "(nur glatte Flächen) und Armaturen – Saugen von Teppichen, Sitzen, "
-                       "Seitenverkleidungen – Reinigung von Scheiben und Spiegeln – "
-                       "fachgerechte Endkontrolle."
-    },
-    "car_wellness": {
-        "name": "CAR WELLNESS",
-        "price": 86,
-        "duration": 120,
-        "description": "Intensive Außen- und Innenreinigung (mit Kofferraum oder Ladefläche). "
-                       "Manuelle Vorreinigung – händische Felgenreinigung – Aktivschaum – "
-                       "Shampoowäsche – Radwäsche – maschinelle Trocknung & zusätzliche "
-                       "manuelle Nachtrocknung – Reinigung von Fußmatten, Innenflächen "
-                       "(nur glatte Flächen) und Armaturen – Saugen von Teppichen, Sitzen, "
-                       "Seitenverkleidungen – Reinigung von Scheiben und Spiegeln – "
-                       "fachgerechte Endkontrolle."
-    },
-    "car_intense": {
-        "name": "CAR INTENSE (Innen)",
-        "price": 68,
-        "duration": 90,
-        "description": "Intensive Innenreinigung (mit Kofferraum oder Ladefläche). "
-                       "Reinigung von Fußmatten, Innenflächen (nur glatte Flächen) "
-                       "und Armaturen – Saugen von Teppichen, Sitzen, Seitenverkleidungen – "
-                       "Reinigung von Scheiben und Spiegeln – fachgerechte Endkontrolle."
-    }
-}
 
 # ================== DATABASE ==================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -119,7 +67,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "frontend", "static")), name="static")
+app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "..", "frontend", "static")), name="static")
 
 # ================== EMAIL CONFIG ==================
 conf = ConnectionConfig(
@@ -131,7 +79,7 @@ conf = ConnectionConfig(
     MAIL_STARTTLS=True,       # вместо MAIL_TLS
     MAIL_SSL_TLS=False,       # SSL/TLS не используем на порту 587
     USE_CREDENTIALS=True,
-    TEMPLATE_FOLDER=os.path.join(BASE_DIR, "frontend")  # укажи реально существующую папку
+    TEMPLATE_FOLDER=os.path.join(BASE_DIR, "..", "frontend")  # укажи реально существующую папку
 )
 
 def render_booking_email(name: str, service_name: str, start: datetime, cancel_token: str):
@@ -160,6 +108,30 @@ def slots():
     data = db.query(Booking).filter(Booking.status == "confirmed").all()
     db.close()
     return [{"start_time": b.start_time.isoformat(), "end_time": b.end_time.isoformat()} for b in data]
+
+@app.get("/api/busy-slots")
+def busy_slots(date: str):
+    """
+    date: YYYY-MM-DD
+    """
+    day_start = datetime.fromisoformat(date)
+    day_end = day_start + timedelta(days=1)
+
+    db = SessionLocal()
+    bookings = db.query(Booking).filter(
+        Booking.status == "confirmed",
+        Booking.start_time >= day_start,
+        Booking.start_time < day_end
+    ).all()
+    db.close()
+
+    return [
+        {
+            "start": b.start_time.isoformat(),
+            "end": b.end_time.isoformat()
+        }
+        for b in bookings
+    ]
 
 
 @app.post("/api/book")
@@ -249,46 +221,18 @@ async def send_email(fm: FastMail, message: MessageSchema):
         print(f"Ошибка при отправке email: {e}")
 
 
-# ================== CANCEL ==================
-@app.get("/cancel/{token}", response_class=HTMLResponse)
-def cancel_booking(token: str):
-    db = SessionLocal()
-    booking = db.query(Booking).filter(Booking.cancel_token == token).first()
-
-    if not booking:
-        db.close()
-        return RedirectResponse(url="/cancel?status=not_found")
-
-    if booking.status == "canceled":
-        db.close()
-        return RedirectResponse(
-            url=f"/cancel?status=already_canceled&service={SERVICES.get(booking.service, {'name': booking.service})['name']}&date={booking.start_time.strftime('%d.%m.%Y')}&time={booking.start_time.strftime('%H:%M')}"
-        )
-
-    booking.status = "canceled"
-    service_name = SERVICES.get(booking.service, {"name": booking.service})["name"]
-    date = booking.start_time.strftime("%d.%m.%Y")
-    time_ = booking.start_time.strftime("%H:%M")
-    db.commit()
-    db.close()
-
-    return RedirectResponse(
-        url=f"/cancel?status=canceled&service={service_name}&date={date}&time={time_}"
-    )
-
-
 # ================== PAGES ==================
 @app.get("/", response_class=HTMLResponse)
 def index():
-    return open(os.path.join(BASE_DIR, "frontend", "index.html"), encoding="utf-8").read()
+    return open(os.path.join(BASE_DIR, "..", "frontend", "index.html"), encoding="utf-8").read()
 
 @app.get("/success", response_class=HTMLResponse)
 def success():
-    return open(os.path.join(BASE_DIR, "frontend", "success.html"), encoding="utf-8").read()
+    return open(os.path.join(BASE_DIR, "..", "frontend", "success.html"), encoding="utf-8").read()
 
 @app.get("/admin", response_class=HTMLResponse)
 def admin():
-    return open(os.path.join(BASE_DIR, "frontend", "admin.html"), encoding="utf-8").read()
+    return open(os.path.join(BASE_DIR, "..", "frontend", "admin.html"), encoding="utf-8").read()
 
 @app.post("/admin/login")
 def admin_login(user: str = Form(...), password: str = Form(...)):
@@ -330,7 +274,7 @@ def admin_cancel(id: int):
 
 @app.get("/cancel", response_class=HTMLResponse)
 def cancel():
-    return open(os.path.join(BASE_DIR, "frontend", "cancel.html"), encoding="utf-8").read()
+    return open(os.path.join(BASE_DIR, "..", "frontend", "cancel.html"), encoding="utf-8").read()
 
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "..", "frontend"))
 

@@ -1,16 +1,7 @@
+# Databases
+*.db
+
 # Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-.env
 .venv/
-
-# Node.js
-node_modules/
-
-# VS Code
-.vscode/
-.DS_Store
-
-dbbookings.db
+.env
