@@ -11,7 +11,7 @@ from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from fastapi_mail import ConnectionConfig
 from fastapi import BackgroundTasks
-from .services import SERVICES
+from services import SERVICES
 import os
 
 # ================== SETTINGS ==================
@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     MAIL_FROM: str
     DOMAIN: str = "http://localhost:8000"
 
+    ADMIN_USER: str
+    ADMIN_PASS: str
+
     model_config = SettingsConfigDict(
         env_file=".env",
         extra="allow"
@@ -29,13 +32,10 @@ class Settings(BaseSettings):
 settings = Settings()  # создаём объект настроек
 
 # ================== CONFIG ==================
-ADMIN_USER = "admin"
-ADMIN_PASS = "admin123"
-
 WORK_START = time(7, 30)
 WORK_END = time(18, 0)
 
-DATABASE_URL = "sqlite:///./bookings.db"
+DATABASE_URL = "sqlite:////data/bookings.db"
 
 
 # ================== DATABASE ==================
@@ -236,9 +236,10 @@ def admin():
 
 @app.post("/admin/login")
 def admin_login(user: str = Form(...), password: str = Form(...)):
-    if user == ADMIN_USER and password == ADMIN_PASS:
+    if user == settings.ADMIN_USER and password == settings.ADMIN_PASS:
         return {"ok": True}
     raise HTTPException(401)
+
 
 @app.get("/api/admin/bookings")
 def admin_bookings():
