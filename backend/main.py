@@ -11,7 +11,7 @@ from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from fastapi_mail import ConnectionConfig
 from fastapi import BackgroundTasks
-from services import SERVICES
+from .services import SERVICES
 import os
 
 # ================== SETTINGS ==================
@@ -23,6 +23,7 @@ class Settings(BaseSettings):
 
     ADMIN_USER: str
     ADMIN_PASS: str
+    ADMIN_EMAILS: str
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -41,7 +42,11 @@ DATABASE_URL = "sqlite:////data/bookings.db"
 # ================== DATABASE ==================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+engine = create_engine(
+    DATABASE_URL,
+    connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+)
+
 SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
@@ -184,7 +189,8 @@ async def book(data: dict, background_tasks: BackgroundTasks):
     )
 
     # Подготовка email администратору
-    admin_email = settings.MAIL_USERNAME
+    admin_emails = [e.strip() for e in settings.ADMIN_EMAILS.split(",")]
+
     html_body_admin = f"""
     <html>
     <body>
@@ -199,7 +205,7 @@ async def book(data: dict, background_tasks: BackgroundTasks):
     """
     message_admin = MessageSchema(
         subject="Neue Buchung eingegangen",
-        recipients=[admin_email],
+        recipients=admin_emails,
         body=html_body_admin,
         subtype="html"
     )
